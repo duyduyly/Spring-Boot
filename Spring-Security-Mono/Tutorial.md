@@ -123,6 +123,23 @@ public interface UserRepository extends JpaRepository<User, Long> {
 }
 ```
 #
+### Create [ResourceException.java](src%2Fmain%2Fjava%2Fcom%2Falan%2Fsecurity%2Fexception%2FResourceException.java)
+```java
+public class ResourceException extends RuntimeException {
+    private Object error;
+
+    public ResourceException(String message) {
+        super(message);
+    }
+
+    public ResourceException(String message, Object error) {
+        super(message);
+        this.error = error;
+    }
+}
+```
+
+#
 ### Create [UserDetailsImpl.java](src%2Fmain%2Fjava%2Fcom%2Falan%2Fsecurity%2Fservice%2Fuser%2FUserDetailsImpl.java)
 ```java
 import com.alan.security.model.entity.User;
@@ -275,6 +292,175 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         return userDetails.build(user);
     }
+}
+```
+
+#
+### add Jwt library
+```pom
+<dependency>
+    <groupId>io.jsonwebtoken</groupId>
+    <artifactId>jjwt</artifactId>
+    <version>0.9.1</version>
+</dependency>
+```
+
+#
+### Create [JwtUtils.java](src%2Fmain%2Fjava%2Fcom%2Falan%2Fsecurity%2Futils%2FJwtUtils.java) 
+```java
+import com.alan.security.service.user.UserDetailsImpl;
+import io.jsonwebtoken.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Component;
+
+import java.util.Date;
+
+@Component
+public class JwtUtils {
+  private static final Logger logger = LoggerFactory.getLogger(JwtUtils.class);
+
+  @Value("${bezkoder.app.jwtSecret}")
+  private String jwtSecret;
+
+  @Value("${bezkoder.app.jwtExpirationMs}")
+  private int jwtExpirationMs;
+
+
+  public String generateAccessToken(Authentication authentication) {
+
+    UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
+
+    return Jwts.builder()
+        .setSubject((userPrincipal.getUsername()))
+        .setIssuedAt(new Date())
+        .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
+        .signWith(SignatureAlgorithm.HS512, jwtSecret)
+        .compact();
+  }
+
+  public String generateAccessToken(String username) {
+    return Jwts.builder()
+            .setSubject((username))
+            .setIssuedAt(new Date())
+            .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
+            .signWith(SignatureAlgorithm.HS512, jwtSecret)
+            .compact();
+  }
+
+  /**
+   get username and password from body of JWT
+   * */
+  public String getUserNameFromJwtToken(String token) {
+    return Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(token).getBody().getSubject();
+  }
+
+  public boolean validateJwtToken(String authToken) {
+    try {
+      Jwts.parser().setSigningKey(jwtSecret).parseClaimsJws(authToken);
+      return true;
+    } catch (SignatureException e) {
+      logger.error("Invalid JWT signature: {}", e.getMessage());
+    } catch (MalformedJwtException e) {
+      logger.error("Invalid JWT token: {}", e.getMessage());
+    } catch (ExpiredJwtException e) {
+      logger.error("JWT token is expired: {}", e.getMessage());
+    } catch (UnsupportedJwtException e) {
+      logger.error("JWT token is unsupported: {}", e.getMessage());
+    } catch (IllegalArgumentException e) {
+      logger.error("JWT claims string is empty: {}", e.getMessage());
+    }
+    return false;
+  }
+  public String getUsernameFromToken(String token) {
+    return Jwts.parser().setSigningKey(jwtSecret)
+            .parseClaimsJws(token)
+            .getBody().getSubject();
+  }
 
 }
 ```
+
+#
+### Create [AuthTokenFilter.java](src%2Fmain%2Fjava%2Fcom%2Falan%2Fsecurity%2Fconfig%2FAuthTokenFilter.java)
+- check after login
+```java
+import com.alan.security.service.user.UserDetailsServiceImpl;
+import com.alan.security.utils.JwtUtils;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.util.StringUtils;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+
+/**
+ * Check JWT token
+ * – OncePerRequestFilter makes a single execution for each request to our API.
+ * It provides a doFilterInternal() method that we will implement parsing & validating JWT,
+ * loading User details (using UserDetailsService), checking Authorizaion (using UsernamePasswordAuthenticationToken).
+ * */
+public class AuthTokenFilter extends OncePerRequestFilter {
+  @Autowired
+  private JwtUtils jwtUtils;
+
+  @Autowired
+  private UserDetailsServiceImpl userDetailsService;
+
+  private static final Logger logger = LoggerFactory.getLogger(AuthTokenFilter.class);
+
+  @Override
+  protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+      throws ServletException, IOException {
+    try {
+      String jwt = parseJwt(request);
+      if (jwt != null && jwtUtils.validateJwtToken(jwt)) {// check validate for token
+        String username = jwtUtils.getUserNameFromJwtToken(jwt);
+
+        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+        // get username password from Login request
+        UsernamePasswordAuthenticationToken authentication =
+            new UsernamePasswordAuthenticationToken(
+                userDetails,
+                null,
+                userDetails.getAuthorities());
+        authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+        // provide the permission access to access in to Security context
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+      }
+    } catch (Exception e) {
+      logger.error("Cannot set user authentication: ", e);
+    }
+
+    filterChain.doFilter(request, response);
+  }
+
+  private String parseJwt(HttpServletRequest request) {
+    String headerAuth = request.getHeader("Authorization");
+
+    if (StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
+      return headerAuth.substring(7, headerAuth.length());
+    }
+
+    return null;
+  }
+}
+
+```
+
+
+
+
