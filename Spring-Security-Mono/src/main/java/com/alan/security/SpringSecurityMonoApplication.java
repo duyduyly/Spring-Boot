@@ -2,7 +2,7 @@ package com.alan.security;
 
 import com.alan.security.model.payload.mail.MailRequest;
 import com.alan.security.service.MailService;
-import com.alan.security.utils.RandomNumberUtils;
+import com.alan.security.utils.CommonUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
@@ -20,7 +20,7 @@ public class SpringSecurityMonoApplication implements CommandLineRunner {
 
 	@Override
 	public void run(String... args) throws Exception {
-		String randomNumber = RandomNumberUtils.randomNumber(100000, 999999);
+		String randomNumber = CommonUtils.randomNumber(100000, 999999);
 		System.out.println(randomNumber);;
 
 		MailRequest otpMail = MailRequest.builder().to("distributor50@yopmail.com")

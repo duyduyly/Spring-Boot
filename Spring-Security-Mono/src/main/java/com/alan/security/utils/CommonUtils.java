@@ -2,7 +2,7 @@ package com.alan.security.utils;
 
 import java.util.Random;
 
-public class RandomNumberUtils {
+public class CommonUtils {
     public static String randomNumber(int min, int max) {
         Random random = new Random();
         int number = min + random.nextInt(max);
