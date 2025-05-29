@@ -22,3 +22,7 @@ spring.mail.properties.mail.smtp.starttls.enable=true
 security.app.jwtSecret= AlanApp
 security.app.jwtExpirationMs= 86400000
 jwt.refresh.expirationMs=604800000
+
+#liquibase
+spring.liquibase.enabled=true
+spring.liquibase.change-log=classpath:db/changelog-master.xml
