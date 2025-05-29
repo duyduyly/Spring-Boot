@@ -1,13 +1,32 @@
 package com.alan.security;
 
+import com.alan.security.model.payload.mail.MailRequest;
+import com.alan.security.service.MailService;
+import com.alan.security.utils.RandomNumberUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class SpringSecurityMonoApplication {
+public class SpringSecurityMonoApplication implements CommandLineRunner {
 
 	public static void main(String[] args) {
 		SpringApplication.run(SpringSecurityMonoApplication.class, args);
 	}
 
+	@Autowired
+	private MailService mailService;
+
+	@Override
+	public void run(String... args) throws Exception {
+		String randomNumber = RandomNumberUtils.randomNumber(100000, 999999);
+		System.out.println(randomNumber);;
+
+		MailRequest otpMail = MailRequest.builder().to("distributor50@yopmail.com")
+				.body("<h1>"+randomNumber+"</h1>").subject("OTP Mail").build();
+
+		mailService.sendEmail(otpMail);
+
+	}
 }
