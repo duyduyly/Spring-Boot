@@ -54,6 +54,10 @@ public class User {
     @Column(name = "active_")
     private Boolean active = true;
 
+    @Column(name = "otp_verify")
+    @Builder.Default
+    private Boolean otpVerify = false;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),
