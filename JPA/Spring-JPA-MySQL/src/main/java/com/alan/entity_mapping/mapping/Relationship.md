@@ -4,8 +4,10 @@
   - [*Solution 1 easy to Save*](#solution-1-easy-to-save-)
   - [*Solution 2: Use MapIds*](#solution-2-use-mapids)
   - [*Difference Two Solution And When Use*](#difference-between-two-solution-and-when-use)
-  - [*Test*](#test)
+  - [*Test*](#test-one-to-one)
 - [**One To Many**](#one-to-many-1-n)
+  - [*Mapping Code*](#mapping-code)
+  - [*Test*](#test-one-to-many)
 - [**Many To Many**](#many-to-many-n-navoid)
 
 #
@@ -216,7 +218,7 @@ public class Profile {
 | You may reuse profiles or have optional linkage | ✅ Normal `@OneToOne` |
 
 
-### Test:
+### Test One To One
 
 - Controller: [UserController.java](one_to_one/test/UserController.java)
 
@@ -259,9 +261,106 @@ http://localhost:9999/api/one-to-one/delete?username=alan10
 Delete Success, Let go to Api Get to check!
 ```
 
+---------------------------
+<br/>
+
+## One to Many (1-n)
+- A Category Will have a lot of Product
+- Can Create Product From Category, Just `Set Category in Product` and `set List product for category` and s`ave category`
+
+### Mapping Code
+__Category.class__
+```java
+@Entity
+@Table(name = "CATEGORY")
+@AllArgsConstructor
+@NoArgsConstructor
+@Setter
+@Getter
+public class Category {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String name;
+
+    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Product> products;
+}
+```
+
+__Product.class__
+```java
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Entity
+@Table(name = "PRODUCT")
+@AllArgsConstructor
+@NoArgsConstructor
+@Setter
+@Getter
+public class Product {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String name;
+
+    public Product(String name, Category category) {
+        this.name = name;
+        this.category = category;
+    }
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", nullable = false) // Foreign Key column in Product
+    private Category category;
+}
+```
+
+__Create Category and Product:__
+```java
+  @GetMapping("/create")
+    public String create(@RequestParam String categoryName, @RequestParam List<String> productNameList) {
+        Category category = new Category();
+        category.setName(categoryName);
+        List<Product> productList = productNameList.stream().map(pd -> new Product(pd, category)).toList();
+        category.setProducts(productList);
+
+        Category save = categoryRepository.save(category);
+        return jsonUtils.convertToJson(new ProductDto(save));
+    }
+```
+### Test One To Many
+- Controller: [ProductController.java](one_to_many/test/ProductController.java)
+- Get Api:
+```text
+http://localhost:9999/api/one-to-many/get
+```
+```text
+[{"category":"Phone","product_name_list":["Samsung s24","Samsung s23","Samsung s22"]},{"category":"Phone","product_name_list":["Samsung s24","Samsung s23","Samsung s22"]}]
+```
 
 #
 
-## One to Many (1-n)
+- Create Category and Product
+```text
+http://localhost:9999/api/one-to-many/create?categoryName=Phone&productNameList=Samsung%20s22&productNameList=Samsung%20s23&productNameList=Samsung%20s24
+```
+```text
+{"category":"Phone","product_name_list":["Samsung s22","Samsung s23","Samsung s24"]}
+```
+
+
 ## Many to Many (n-n)(avoid)
 
