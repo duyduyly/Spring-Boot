@@ -3,6 +3,7 @@
 - Connect Mysql
 - [**Relationship**](src/main/java/com/alan/entity_mapping/mapping/Relationship.md)
 - [**Entity Listener**](src/main/java/com/alan/entity_listener/EntityListener.md)
+- [**Data Type Mapping**](src/main/java/com/alan/entity_mapping/data_type/Data%20Type%20Mapping.md)
 
 ## Connecting MySql
 
