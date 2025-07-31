@@ -540,6 +540,7 @@ http://localhost:9999/api/many-to-many/create?studentName=Alan&courseTitleList=P
   - Better normalization and SQL JOIN control
 - `MapsId` and [StudentCourseId.java](many_to_many/solution_2/StudentCourseId.java)  create relationship to course and can query by id of both
   - ` @EmbeddedId` or `@IdClass` for Composite Keys
+- Always Adding Index (`indexes = @Index(name = "idx_student2_course2", columnList = "student2_id, course2_id")`) to `speed up` query when `search`, `filter`, `join` or `sort`
 
 [Course2.java](many_to_many/solution_2/Course2.java)
 ```java
@@ -621,7 +622,7 @@ import java.time.LocalDate;
 
 @Builder
 @Entity
-@Table(name = "STUDENT2COURSE2")
+@Table(name = "STUDENT2_COURSE2", indexes = @Index(name = "idx_student2_course2", columnList = "student2_id, course2_id"))
 @EqualsAndHashCode(exclude = {"student2", "course2"})
 @ToString(exclude = {"student2", "course2"})
 @AllArgsConstructor

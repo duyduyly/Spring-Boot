@@ -4,7 +4,7 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Index;import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -19,7 +19,7 @@ import java.time.LocalDate;
 
 @Builder
 @Entity
-@Table(name = "STUDENT2COURSE2")
+@Table(name = "STUDENT2_COURSE2", indexes = @Index(name = "idx_student2_course2", columnList = "student2_id, course2_id"))
 @EqualsAndHashCode(exclude = {"student2", "course2"})
 @ToString(exclude = {"student2", "course2"})
 @AllArgsConstructor
