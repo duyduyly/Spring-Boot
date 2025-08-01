@@ -13,9 +13,17 @@
   - [*Solution 1 Test*](#manytomany-solution-1-test)
   - [*Solution 2*](#manytomany-solution-2)
   - [*Solution 2 Test*](#test-manytomany-solution-2)
-
+- [**Fetching**](#fetching)
+  - [*Fetching Type Lazy*](#fetchtypelazy)
+  - [*Fetching Type Eager*](#fetchtypeeager)
+  - [*In Queries*](#fetching-strategies-in-queries)
+  - [*Avoiding n1 Problem*](#avoiding-n1-problem)
+  - [*Using dto Projections to Fetch Selectively*](#using-dto-projections-to-fetch-selectively)
+- [**Cascade**](#cascade)
+  - [*What is cascade?*](#what-is-cascade)
+  - [*Type of Cascade*](#type-of-cascade)
+  - [*Important Tips*](#-important-tips-in-spring-jpa-context)
 #
-
 ## One To One (1-1)
 - Advice, should `fetch = FetchType.EAGER` because One User Only One Profile (can get when Query User)
 
@@ -706,3 +714,175 @@ http://localhost:9999/api/many-to-many/create2?studentName=Alan&courseTitleList=
 ```text
 {"Alan":["Java","AWS","Python"]}
 ```
+
+-------------------
+<br/>
+
+## Fetching
+- Fetching refers to how related entities are loaded from the database. 
+
+### FetchType.LAZY
+- Related entities are not loaded immediately.
+- Only loaded when accessed ("lazy loaded").
+
+#
+### FetchType.EAGER
+- Related entities are loaded immediately with the main entity.
+- Important: EAGER can cause performance issues and N+1 problems.
+
+#
+### Fetching Strategies in Queries
+#### JOIN FETCH (JPQL)
+- Use when you want to fetch associations eagerly only in this query.
+```java
+@Query("SELECT u FROM User u JOIN FETCH u.orders WHERE u.id = :id")
+User findByIdWithOrders(@Param("id") Long id);
+```
+
+#
+#### EntityGraph (Recommended Alternative)
+- Use @EntityGraph to fetch associations without writing JPQL JOIN.
+- ✅ More readable and reusable than JOIN FETCH
+```java
+@EntityGraph(attributePaths = {"orders"}) //orders list in relationship
+User findById(Long id);
+```
+
+#
+### Avoiding N+1 Problem
+- The N+1 problem occurs when fetching a list of entities and then fetching their children in separate queries.
+
+- ❌ Bad:
+```java
+List<User> users = userRepo.findAll();
+for (User user : users) {
+    System.out.println(user.getOrders().size()); // triggers N separate queries!
+}
+```
+
+- ✅ Fix with JOIN FETCH Or with `@EntityGraph`:
+```java
+@Query("SELECT u FROM User u LEFT JOIN FETCH u.orders")
+List<User> findAllWithOrders();
+```
+
+#
+### Using DTO Projections to Fetch Selectively
+- If you don’t need the full entity graph, project directly into DTOs:
+```java
+@Query("SELECT new com.example.UserDTO(u.id, u.name) FROM User u")
+List<UserDTO> findAllUserDTOs();
+```
+
+#
+### Example for All
+```java
+@Entity
+public class User {
+    @Id Long id;
+
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
+    private List<Order> orders;
+}
+
+@Entity
+public class Order {
+    @Id Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private User user;
+}
+
+@Repository
+public interface UserRepository extends JpaRepository<User, Long> {
+    @EntityGraph(attributePaths = "orders")
+    Optional<User> findById(Long id);
+}
+```
+
+------------
+<br/>
+
+
+## Cascade
+- In JPA, the cascade attribute controls how operations on one entity (the parent) should automatically apply to its related entities (the children). It’s especially important in parent-child relationships like @OneToMany, @ManyToOne, etc.
+- `cascade` simplifies complex entity operations.
+- Use `CascadeType.AL`L only when you truly need all cascades.
+
+#
+### What Is Cascade?
+- When you perform an action on a parent entity, you may want the same action to apply to its associated children.
+
+```java
+@Entity
+public class User {
+
+  @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<Post> posts = new ArrayList<>();
+}
+
+@Entity
+public class Post {
+
+  @ManyToOne
+  @JoinColumn(name = "user_id")
+  private User user;
+}
+```
+
+```java
+User user = new User();
+Post post1 = new Post();
+Post post2 = new Post();
+
+post1.setUser(user);
+post2.setUser(user);
+
+user.setPosts(List.of(post1, post2));
+userRepository.save(user); // Will save user AND both posts
+```
+- ✅ Because of cascade = CascadeType.ALL, saving the parent also saves the children.
+
+#
+### Type of Cascade
+| Cascade Type | Description                                                       |
+|--------------|-------------------------------------------------------------------|
+| `PERSIST`    | When the parent is saved, the child is also saved.                |
+| `MERGE`      | When the parent is updated, the child is updated.                 |
+| `REMOVE`     | When the parent is deleted, the child is also deleted.            |
+| `REFRESH`    | When the parent is refreshed, the child is too.                   |
+| `DETACH`     | When the parent is detached, the child is too.                    |
+| `ALL`        | Includes all the above (persist, merge, remove, refresh, detach). |
+
+Optional:
+- Use `orphanRemoval = true` for child entities that should be removed when they are no longer referenced by the parent. This is particularly useful for one-to-many relationships.
+```java
+orphanRemoval = true
+```
+
+- Summary Table:
+
+| Operation                                  | Cascade Type           |
+|--------------------------------------------|------------------------|
+| Saving new entities with children          | `PERSIST`              |
+| Updating detached entity and children      | `MERGE`                |
+| Deleting both parent and children          | `REMOVE`               |
+| Clean up children when removed from parent | `orphanRemoval = true` |
+| Want everything cascaded                   | `ALL` (be careful!)    |
+
+
+#
+### 🔸 Important Tips in Spring JPA Context
+- ✅ Use `CascadeType.PERSIST` when saving parent + new children.
+- ✅ Use `CascadeType.REMOVE` only if you're sure you want to delete children when parent is deleted.
+- ❌ Do not use cascades blindly, especially `ALL` on `@ManyToOne`.
+- ✅ Use `orphanRemoval = true` to automatically delete removed children from the collection.
+
+| Relationship  | Common Cascades                                        |
+|---------------|--------------------------------------------------------|
+| `@OneToMany`  | `CascadeType.ALL`, `orphanRemoval = true`              |
+| `@ManyToOne`  | Usually **no cascade** (child shouldn’t affect parent) |
+| `@OneToOne`   | `CascadeType.ALL`                                      |
+| `@ManyToMany` | Rare, but maybe `PERSIST`, `MERGE`                     |
+
+
